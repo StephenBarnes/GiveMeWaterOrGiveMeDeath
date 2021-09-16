@@ -1,0 +1,29 @@
+modLoader="javafml"
+loaderVersion="[36,)"
+license="Public domain"
+
+[[mods]]
+modId="waterordeath"
+version="1.0"
+displayName="Give Me Water Or Give Me Death"
+#updateJSONURL=""
+displayURL="https://www.curseforge.com/minecraft/mc-mods/give-me-water-or-give-me-death"
+#logoFile="logo.png"
+#credits=""
+authors="StephenBarnes"
+description='''
+Crops must be watered (by nearby water or other tools) or they die.'''
+
+[[dependencies.waterordeath]]
+    modId="forge"
+    mandatory=true
+    versionRange="[36.2.0,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.waterordeath]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.16.5,1.17)"
+    ordering="NONE"
+    side="BOTH"
