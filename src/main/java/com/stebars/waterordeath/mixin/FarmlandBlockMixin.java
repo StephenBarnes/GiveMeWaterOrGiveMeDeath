@@ -1,6 +1,12 @@
-package com.stebars.waterordeath;
+package com.stebars.waterordeath.mixin;
 
 import java.util.Random;
+
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
+
+import com.stebars.waterordeath.OptionsHolder;
 
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
@@ -16,53 +22,50 @@ import net.minecraft.util.Direction;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvents;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.shapes.VoxelShape;
 import net.minecraft.world.IBlockReader;
 import net.minecraft.world.IWorldReader;
+import net.minecraft.world.World;
 import net.minecraft.world.server.ServerWorld;
 
-public class WoDFarmlandBlock extends FarmlandBlock {
+@Mixin(FarmlandBlock.class)
+public abstract class FarmlandBlockMixin extends Block {
 
-	public static final IntegerProperty MOISTURE = BlockStateProperties.MOISTURE;
-	protected static final VoxelShape SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 15.0D, 16.0D);
-	public static final int REDUCE_MOISTURE_RATE_OUT_OF = 10000; // so rate = 10 means 10 out of 10000
-	public static int reduceMoistureRate = OptionsHolder.COMMON.reduceMoistureRate.get();
-	public static int startingMoisture = OptionsHolder.COMMON.startingMoisture.get();
-	public static int moistureLoss = OptionsHolder.COMMON.moistureLoss.get();
-	public static int waterRangeHorizontal = OptionsHolder.COMMON.waterRangeHorizontal.get();
-	public static int waterRangeUp = OptionsHolder.COMMON.waterRangeUp.get();
-	public static int waterRangeDown = OptionsHolder.COMMON.waterRangeDown.get();
-	public static boolean dryingCropsStillDrop = OptionsHolder.COMMON.dryingCropsStillDrop.get();
-	public static boolean dryCropsDie = OptionsHolder.COMMON.dryCropsDie.get();
-	public static final int MAX_MOISTURE = 7;
+	@Shadow public static final IntegerProperty MOISTURE = BlockStateProperties.MOISTURE;
+	
+	private static final int REDUCE_MOISTURE_RATE_OUT_OF = 10000; // so rate = 10 means 10 out of 10000
+	private static int reduceMoistureRate = OptionsHolder.COMMON.reduceMoistureRate.get();
+	private static int moistureLoss = OptionsHolder.COMMON.moistureLoss.get();
+	private static int waterRangeHorizontal = OptionsHolder.COMMON.waterRangeHorizontal.get();
+	private static int waterRangeUp = OptionsHolder.COMMON.waterRangeUp.get();
+	private static int waterRangeDown = OptionsHolder.COMMON.waterRangeDown.get();
+	private static boolean dryingCropsStillDrop = OptionsHolder.COMMON.dryingCropsStillDrop.get();
+	private static boolean dryCropsDie = OptionsHolder.COMMON.dryCropsDie.get();
+	private static final int MAX_MOISTURE = 7;
 
-	// TODO also need to provide IForgeBlock.isFertile?
-
-	public WoDFarmlandBlock() {
-		super(AbstractBlock.Properties.copy(Blocks.FARMLAND));
-	}
-	public WoDFarmlandBlock(Properties properties) {
-		super(properties);
-
-		// this.registerDefaultState(this.stateDefinition.any().setValue(MOISTURE, Integer.valueOf(startingMoisture)));
-		// This doesn't work, moisture still starts at 0, so I'm rather setting in hoe function
+	public FarmlandBlockMixin(AbstractBlock.Properties p_i48400_1_) {
+		super(p_i48400_1_);
+		this.registerDefaultState(this.stateDefinition.any().setValue(MOISTURE, Integer.valueOf(0)));
 	}
 
-	@Override
+	@Overwrite
 	public void tick(BlockState state, ServerWorld serverWorld, BlockPos pos, Random random) {
-		if (!state.canSurvive(serverWorld, pos)) {
+		if (!state.canSurvive(serverWorld, pos))
 			turnToDirt(state, serverWorld, pos);
-		}
 	}
 
-	@Override
+	@Shadow
+	public static void turnToDirt(BlockState p_199610_0_, World p_199610_1_, BlockPos p_199610_2_) {
+		p_199610_1_.setBlockAndUpdate(p_199610_2_, pushEntitiesUp(p_199610_0_, Blocks.DIRT.defaultBlockState(), p_199610_1_, p_199610_2_));
+	}
+
+	@Overwrite
 	public boolean canSurvive(BlockState blockstate, IWorldReader p_196260_2_, BlockPos pos) {
 		BlockState stateAbove = p_196260_2_.getBlockState(pos.above());
 		return !(stateAbove.getMaterial().isSolid() || stateAbove.getBlock() instanceof MovingPistonBlock);
 		// Removed `stateAbove.getBlock() instanceof FenceGateBlock`
 	}
 
-	@Override
+	@Overwrite
 	public void randomTick(BlockState blockState, ServerWorld serverWorld, BlockPos pos, Random random) {
 		int moisture = blockState.getValue(MOISTURE);
 
@@ -84,7 +87,7 @@ public class WoDFarmlandBlock extends FarmlandBlock {
 	}
 
 	// Called when moisture is zero and would be reduced further
-	public void dryOut(BlockState blockState, ServerWorld serverWorld, BlockPos pos) {
+	private void dryOut(BlockState blockState, ServerWorld serverWorld, BlockPos pos) {
 		final boolean underCrops = isUnderCrops(serverWorld, pos);
 		if (!dryCropsDie && underCrops)
 			return;
@@ -100,41 +103,26 @@ public class WoDFarmlandBlock extends FarmlandBlock {
 		turnToDirt(blockState, serverWorld, pos);
 	}
 
+	@Overwrite
 	private static boolean isNearWater(IWorldReader p_176530_0_, BlockPos p_176530_1_) {
 		for(BlockPos blockpos : BlockPos.betweenClosed(
 				p_176530_1_.offset(-waterRangeHorizontal, -waterRangeUp, -waterRangeHorizontal), 
-				p_176530_1_.offset( waterRangeHorizontal, waterRangeDown, waterRangeHorizontal))) {
-			if (p_176530_0_.getFluidState(blockpos).is(FluidTags.WATER)) {
+				p_176530_1_.offset( waterRangeHorizontal, waterRangeDown, waterRangeHorizontal)))
+			if (p_176530_0_.getFluidState(blockpos).is(FluidTags.WATER))
 				return true;
-			}
-		}
 		return net.minecraftforge.common.FarmlandWaterManager.hasBlockWaterTicket(p_176530_0_, p_176530_1_);
 	}
 
-	// Vanilla farmland isn't pathfindable?? So override it to true
-	@Override
+	// Vanilla farmland isn't pathfindable?? So overwrite it to true
+	@Overwrite
 	public boolean isPathfindable(BlockState p_196266_1_, IBlockReader p_196266_2_, BlockPos p_196266_3_, PathType p_196266_4_) {
 		return true;
 	}
-	
-	// Have to copy this from FarmlandBlock because it's not public there
-	public boolean isUnderCrops(IBlockReader p_176529_0_, BlockPos p_176529_1_) {
+
+	@Shadow private boolean isUnderCrops(IBlockReader p_176529_0_, BlockPos p_176529_1_) {
 		BlockState plant = p_176529_0_.getBlockState(p_176529_1_.above());
 		BlockState state = p_176529_0_.getBlockState(p_176529_1_);
 		return plant.getBlock() instanceof net.minecraftforge.common.IPlantable && state.canSustainPlant(p_176529_0_, p_176529_1_, Direction.UP, (net.minecraftforge.common.IPlantable)plant.getBlock());
 	}
 
-	// More functions that could be overridden
-	/*@Override
-	public void fallOn(World p_180658_1_, BlockPos p_180658_2_, Entity p_180658_3_, float p_180658_4_) {
-		if (!p_180658_1_.isClientSide && net.minecraftforge.common.ForgeHooks.onFarmlandTrample(p_180658_1_, p_180658_2_, Blocks.DIRT.defaultBlockState(), p_180658_4_, p_180658_3_)) { // Forge: Move logic to Entity#canTrample
-			turnToDirt(p_180658_1_.getBlockState(p_180658_2_), p_180658_1_, p_180658_2_);
-		}
-
-		super.fallOn(p_180658_1_, p_180658_2_, p_180658_3_, p_180658_4_);
-	}*/
-	/*public static void turnToDirt(BlockState p_199610_0_, World p_199610_1_, BlockPos p_199610_2_) {
-		p_199610_1_.setBlockAndUpdate(p_199610_2_, pushEntitiesUp(p_199610_0_, Blocks.DIRT.defaultBlockState(), p_199610_1_, p_199610_2_));
-	}*/
 }
-

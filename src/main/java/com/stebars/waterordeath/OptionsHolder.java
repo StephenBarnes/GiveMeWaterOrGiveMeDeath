@@ -19,8 +19,6 @@ public class OptionsHolder {
 	    public ConfigValue<Boolean> dryCropsDie;
 	    
 		public Common(ForgeConfigSpec.Builder builder) {
-	        startingMoisture = builder.comment("Moisture of farmland blocks when created (e.g. with a hoe). Max moisture is 7.")
-	        		.define("startingMoisture", 2);
 	        reduceMoistureRate = builder.comment("Rate at which moisture reduces. Each random tick, there's a "
 	        		+ "[this value] / 10,000 chance that moisture rate will reduce by 1 if there's no nearby water.")
 	        		.define("reduceMoistureRate", 10000);
