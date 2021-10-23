@@ -1,5 +1,7 @@
 package com.stebars.waterordeath.mixin;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -25,22 +27,24 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockReader;
 import net.minecraft.world.IWorldReader;
 import net.minecraft.world.World;
+import net.minecraft.world.biome.Biome;
 import net.minecraft.world.server.ServerWorld;
 
 @Mixin(FarmlandBlock.class)
 public abstract class FarmlandBlockMixin extends Block {
 
 	@Shadow public static final IntegerProperty MOISTURE = BlockStateProperties.MOISTURE;
-	
+
 	private static final int REDUCE_MOISTURE_RATE_OUT_OF = 10000; // so rate = 10 means 10 out of 10000
-	private static int reduceMoistureRate = OptionsHolder.COMMON.reduceMoistureRate.get();
-	private static int moistureLoss = OptionsHolder.COMMON.moistureLoss.get();
+	private static Map<Biome.Category, Integer> reduceMoistureRate = new HashMap<Biome.Category, Integer>();
+	private static Map<Biome.Category, Integer> moistureLoss = new HashMap<Biome.Category, Integer>();
 	private static int waterRangeHorizontal = OptionsHolder.COMMON.waterRangeHorizontal.get();
 	private static int waterRangeUp = OptionsHolder.COMMON.waterRangeUp.get();
 	private static int waterRangeDown = OptionsHolder.COMMON.waterRangeDown.get();
 	private static boolean dryingCropsStillDrop = OptionsHolder.COMMON.dryingCropsStillDrop.get();
 	private static boolean dryCropsDie = OptionsHolder.COMMON.dryCropsDie.get();
 	private static final int MAX_MOISTURE = 7;
+	private static boolean biomeValuesInitialized = false;
 
 	public FarmlandBlockMixin(AbstractBlock.Properties p_i48400_1_) {
 		super(p_i48400_1_);
@@ -77,12 +81,26 @@ public abstract class FarmlandBlockMixin extends Block {
 		}
 
 		// If not near water, we gradually reduce moisture, must be topped up by irrigation systems
-		if (reduceMoistureRate > random.nextInt() % REDUCE_MOISTURE_RATE_OUT_OF) {
-			if (moisture - moistureLoss >= 0)
+		if (!biomeValuesInitialized) {
+			initializeBiomeValues();
+			biomeValuesInitialized = true;
+		}
+		Biome.Category category = serverWorld.getBiome(pos).getBiomeCategory();
+		int biomeReduceMoistureRate = reduceMoistureRate.get(category);
+		int biomeMoistureLoss = moistureLoss.get(category);
+		if (biomeReduceMoistureRate > random.nextInt() % REDUCE_MOISTURE_RATE_OUT_OF) {
+			if (moisture - biomeMoistureLoss >= 0)
 				serverWorld.setBlock(pos, blockState.setValue(MOISTURE,
-						Integer.valueOf(Integer.max(0, moisture - moistureLoss))), 2);
+						Integer.valueOf(Integer.max(0, moisture - biomeMoistureLoss))), 2);
 			else
 				dryOut(blockState, serverWorld, pos);
+		}
+	}
+
+	private void initializeBiomeValues() {
+		for (Biome.Category category: Biome.Category.values()) {
+			reduceMoistureRate.put(category, OptionsHolder.COMMON.reduceMoistureRate.get(category).get());
+			moistureLoss.put(category, OptionsHolder.COMMON.moistureLoss.get(category).get());
 		}
 	}
 
